@@ -1,11 +1,12 @@
 import streamlit as st
 import re
+import json
 from snowflake.snowpark.context import get_active_session
 
 session = get_active_session()
 
-st.title("Legacy SQL Modernization Tool")
-st.caption("Convert legacy SQL to Snowflake-optimized code with AI-powered suggestions")
+st.title("CoCo-Morph: Legacy Code Modernization Tool")
+st.caption("Convert legacy Codes to Snowflake-optimized code with AI-powered suggestions")
 
 if "optimized_code" not in st.session_state:
     st.session_state.optimized_code = None
@@ -13,10 +14,8 @@ if "suggestions" not in st.session_state:
     st.session_state.suggestions = None
 if "detected_dialect" not in st.session_state:
     st.session_state.detected_dialect = None
-if "complexity_reduction" not in st.session_state:
-    st.session_state.complexity_reduction = None
-if "complexity_breakdown" not in st.session_state:
-    st.session_state.complexity_breakdown = None
+if "score_data" not in st.session_state:
+    st.session_state.score_data = {}
 if "legacy_sql" not in st.session_state:
     st.session_state.legacy_sql = ""
 
@@ -45,6 +44,21 @@ Where SEVERITY is one of: Critical, Recommended, Nice-to-have
 And CATEGORY is one of: Syntax Modernization, Performance, Snowflake-Native Features, Best Practices, Cost Optimization
 ===SUGGESTIONS_END===
 
+===SCORE_START===
+Analyze the original SQL and list ALL legacy/proprietary patterns found.
+For each pattern, indicate whether it was converted in the optimized code.
+
+Return ONLY a JSON object with these exact keys:
+{
+  "patterns_detected": [
+    {"pattern": "<pattern name>", "original": "<what was in original>", "converted_to": "<what it became in optimized, or 'Not changed' if still present>"}
+  ],
+  "summary": "<2-3 sentence plain English summary of what was modernized and any remaining considerations>"
+}
+
+Legacy patterns include: proprietary functions (NVL, DECODE, ISNULL, GETDATE, ZEROIFNULL, OREPLACE, etc.), proprietary syntax (SELECT TOP, WITH NOLOCK, (+) joins, SEL, LOCKING ROW, etc.), procedural constructs (CURSOR, LOOP, FETCH, EXEC, COLLECT STATISTICS, etc.), temp table patterns (VOLATILE TABLE, GLOBAL TEMPORARY, #temp, etc.), proprietary DDL (PRIMARY INDEX, FALLBACK, MULTISET TABLE, etc.), and any other non-Snowflake syntax.
+===SCORE_END===
+
 Rules for optimization:
 - Replace proprietary functions with Snowflake equivalents (NVL->COALESCE, DECODE->CASE, (+)->ANSI JOIN, etc.)
 - Replace cursors/loops with set-based operations
@@ -57,89 +71,9 @@ Rules for optimization:
 - Use Snowflake semi-structured functions (FLATTEN, PARSE_JSON) where applicable
 - Use IDENTIFIER() for dynamic SQL instead of string concatenation
 - Recommend TRANSIENT tables for temporary data
+- IMPORTANT: Minimize the number of lines in the optimized code. Combine statements where possible, remove unnecessary line breaks, use inline expressions, and consolidate CTEs. Only keep separate lines when required for readability or correctness.
 
 Return ONLY the delimited sections above. No extra text."""
-
-
-def compute_complexity(original_sql, optimized_sql):
-    def score_sql(sql):
-        s = sql.upper()
-        scores = {}
-
-        join_score = 0
-        implicit_joins = len(re.findall(r'\bFROM\s+\w+\s*,\s*\w+', s))
-        join_score += implicit_joins * 5
-        if "(+)" in s:
-            join_score += 5
-        join_hints = len(re.findall(r'/\*\+.*?(ORDERED|USE_NL|USE_HASH|LEADING).*?\*/', s))
-        join_score += join_hints * 3
-        scores["Join Complexity"] = min(join_score, 25)
-
-        subquery_score = 0
-        subquery_count = len(re.findall(r'\(\s*SELECT\b', s))
-        subquery_score += subquery_count * 8
-        correlated = len(re.findall(r'\(\s*SELECT\b.*?WHERE\s+\w+\.\w+\s*=\s*\w+\.\w+', s, re.DOTALL))
-        subquery_score += correlated * 5
-        scores["Subquery Depth"] = min(subquery_score, 25)
-
-        pred_score = 0
-        nonsargable_fns = ["YEAR(", "MONTH(", "DAY(", "UPPER(", "LOWER(", "TRIM(", "TO_CHAR(", "TRUNC(", "NVL(", "SUBSTR("]
-        for fn in nonsargable_fns:
-            if fn in s:
-                pred_score += 4
-        or_chains = len(re.findall(r'\bOR\b', s))
-        if or_chains > 3:
-            pred_score += 5
-        scores["Predicate Complexity"] = min(pred_score, 25)
-
-        proc_score = 0
-        if re.search(r'\bCURSOR\b', s):
-            proc_score += 12
-        if re.search(r'\bLOOP\b', s) or re.search(r'\bWHILE\b', s):
-            proc_score += 8
-        temp_tables = len(re.findall(r'\bCREATE\s+(OR\s+REPLACE\s+)?(GLOBAL\s+)?TEMP(ORARY)?\s+TABLE\b', s))
-        proc_score += temp_tables * 4
-        if re.search(r'\bEXECUTE\s+IMMEDIATE\b', s):
-            proc_score += 3
-        scores["Procedural Constructs"] = min(proc_score, 15)
-
-        func_score = 0
-        proprietary_fns = ["NVL(", "NVL2(", "ISNULL(", "DECODE(", "GETDATE()", "SYSDATE",
-                           "ROWNUM", "TOP ", "CONNECT BY", "START WITH", "DATEPART(",
-                           "CHARINDEX(", "PATINDEX(", "LEN(", "DATEDIFF("]
-        for fn in proprietary_fns:
-            if fn in s:
-                func_score += 2
-        scores["Function Overhead"] = min(func_score, 10)
-
-        return scores
-
-    orig_scores = score_sql(original_sql)
-    opt_scores = score_sql(optimized_sql)
-
-    orig_total = sum(orig_scores.values())
-    opt_total = sum(opt_scores.values())
-
-    if orig_total == 0:
-        reduction = 0.0
-    else:
-        reduction = ((orig_total - opt_total) / orig_total) * 100
-
-    reduction = round(max(min(reduction, 100), 0), 1)
-
-    breakdown = {}
-    for key in orig_scores:
-        breakdown[key] = {
-            "before": orig_scores[key],
-            "after": opt_scores.get(key, 0),
-        }
-
-    return {
-        "original_score": orig_total,
-        "optimized_score": opt_total,
-        "reduction_percent": reduction,
-        "breakdown": breakdown,
-    }
 
 
 def get_databases():
@@ -231,12 +165,26 @@ def optimize_sql(legacy_code):
             r'===SUGGESTIONS_START===\s*(.*?)\s*===SUGGESTIONS_END===',
             raw, re.DOTALL
         )
+        score_match = re.search(
+            r'===SCORE_START===\s*(.*?)\s*===SCORE_END===',
+            raw, re.DOTALL
+        )
         dialect = type_match.group(1).strip() if type_match else "Unknown"
         code = code_match.group(1).strip() if code_match else raw.strip()
         suggestions = sugg_match.group(1).strip() if sugg_match else ""
-        return code, suggestions, dialect
+
+        score_data = {}
+        if score_match:
+            try:
+                score_json = re.search(r'\{.*\}', score_match.group(1).strip(), re.DOTALL)
+                if score_json:
+                    score_data = json.loads(score_json.group(0))
+            except Exception:
+                score_data = {}
+
+        return code, suggestions, dialect, score_data
     except Exception as e:
-        return f"Error: {e}", "", "Unknown"
+        return f"Error: {e}", "", "Unknown", {}
 
 
 input_mode = st.radio(
@@ -326,18 +274,16 @@ elif input_mode == "Browse File":
 
 st.divider()
 
-if st.button("Optimize SQL", type="primary", use_container_width=True):
+if st.button("Optimize Code", type="primary", use_container_width=True):
     if not st.session_state.legacy_sql:
         st.warning("Please paste or fetch SQL before optimizing.")
     else:
         with st.spinner("Analyzing and optimizing your SQL..."):
-            optimized, suggestions, dialect = optimize_sql(st.session_state.legacy_sql)
-            complexity = compute_complexity(st.session_state.legacy_sql, optimized)
+            optimized, suggestions, dialect, score_data = optimize_sql(st.session_state.legacy_sql)
             st.session_state.optimized_code = optimized
             st.session_state.suggestions = suggestions
             st.session_state.detected_dialect = dialect
-            st.session_state.complexity_reduction = complexity["reduction_percent"]
-            st.session_state.complexity_breakdown = complexity
+            st.session_state.score_data = score_data
 
 if st.session_state.optimized_code:
     st.divider()
@@ -345,23 +291,13 @@ if st.session_state.optimized_code:
     tab1, tab2, tab3, tab4 = st.tabs([
         "Optimized Code",
         "Optimization Suggestions",
-        "Complexity Analysis",
+        "Pattern Analysis",
         "Side-by-Side",
     ])
 
     with tab1:
         st.subheader("Snowflake-Optimized SQL")
         st.code(st.session_state.optimized_code, language="sql")
-        if st.session_state.complexity_reduction is not None:
-            reduction = st.session_state.complexity_reduction
-            if reduction >= 50:
-                st.success(f"**Code Complexity Reduced: {reduction}%**")
-            elif reduction >= 20:
-                st.info(f"**Code Complexity Reduced: {reduction}%**")
-            elif reduction > 0:
-                st.warning(f"**Code Complexity Reduced: {reduction}%** (minor improvements)")
-            else:
-                st.info("**No measurable complexity reduction.** SQL may already be well-optimized.")
 
     with tab2:
         st.subheader("Optimization Suggestions")
@@ -386,63 +322,58 @@ if st.session_state.optimized_code:
             st.info("No suggestions returned. Review the optimized code above.")
 
     with tab3:
-        st.subheader("Complexity Analysis")
-        cb = st.session_state.complexity_breakdown
-        if cb:
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.metric("Original Score", f"{cb['original_score']} / 100")
-            with m2:
-                st.metric("Optimized Score", f"{cb['optimized_score']} / 100")
-            with m3:
-                st.metric("Reduction", f"{cb['reduction_percent']}%")
+        st.subheader("Pattern Analysis")
+        sd = st.session_state.score_data
+        if sd:
+            summary = sd.get("summary", "")
+            if summary:
+                st.info(summary)
 
-            if cb["original_score"] > 0:
-                st.progress(min(cb["reduction_percent"] / 100.0, 1.0))
+            patterns = sd.get("patterns_detected", [])
+            if patterns:
+                converted = [p for p in patterns if p.get("converted_to", "").lower() != "not changed"]
+                not_converted = [p for p in patterns if p.get("converted_to", "").lower() == "not changed"]
+
+                m1, m2 = st.columns(2)
+                with m1:
+                    st.metric("Patterns Detected", len(patterns))
+                with m2:
+                    st.metric("Patterns Converted", len(converted))
+
+                st.subheader("Legacy Patterns Converted")
+                for p in converted:
+                    st.markdown(f":green[**{p.get('pattern', '')}**]")
+                    st.caption(f"`{p.get('original', '')}` → `{p.get('converted_to', '')}`")
+
+                if not_converted:
+                    st.subheader("Patterns Remaining")
+                    for p in not_converted:
+                        st.markdown(f":orange[**{p.get('pattern', '')}**]")
+                        st.caption(f"`{p.get('original', '')}`")
             else:
-                st.progress(0.0)
-
-            st.subheader("Breakdown by Category")
-            for comp, vals in cb["breakdown"].items():
-                before = vals["before"]
-                after = vals["after"]
-                if before > 0:
-                    change_pct = round(((before - after) / before) * 100)
-                    icon = "+" if change_pct >= 0 else ""
-                    label = f"{comp}: {before} -> {after} ({icon}{change_pct}% reduction)"
-                else:
-                    label = f"{comp}: {before} -> {after} (no change)"
-
-                col_label, col_bar = st.columns([2, 3])
-                with col_label:
-                    if before > after:
-                        st.markdown(f":green[{label}]")
-                    elif before == after and before == 0:
-                        st.markdown(f":gray[{label}]")
-                    elif before == after:
-                        st.markdown(f":orange[{label}]")
-                    else:
-                        st.markdown(f":red[{label}]")
-                with col_bar:
-                    max_score = {"Join Complexity": 25, "Subquery Depth": 25,
-                                 "Predicate Complexity": 25, "Procedural Constructs": 15,
-                                 "Function Overhead": 10}.get(comp, 25)
-                    if max_score > 0:
-                        st.progress(min(after / max_score, 1.0))
-
-            st.caption("Scores: Join (0-25), Subquery (0-25), Predicate (0-25), Procedural (0-15), Functions (0-10)")
-
-            if cb["original_score"] == 0:
-                st.info("The original SQL has no detectable legacy patterns. It may already be Snowflake-compatible.")
+                st.info("No legacy patterns detected. SQL may already be Snowflake-compatible.")
         else:
-            st.info("Run optimization to see complexity analysis.")
+            st.info("Run optimization to see pattern analysis.")
 
-    with tab4:
-        st.subheader("Comparison")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.caption("Original")
-            st.code(st.session_state.legacy_sql if st.session_state.legacy_sql else "No original code", language="sql")
-        with c2:
-            st.caption("Optimized")
-            st.code(st.session_state.optimized_code, language="sql")
+        with tab4:
+            st.subheader("Comparison")
+            orig = st.session_state.legacy_sql if st.session_state.legacy_sql else ""
+            opt = st.session_state.optimized_code
+            orig_lines = len([l for l in orig.strip().splitlines() if l.strip()]) if orig else 0
+            opt_lines = len([l for l in opt.strip().splitlines() if l.strip()]) if opt else 0
+            diff = orig_lines - opt_lines
+    
+            if diff > 0:
+                st.success(f"**{diff} lines reduced** ({orig_lines} → {opt_lines})")
+            elif diff < 0:
+                st.info(f"**{abs(diff)} lines added** ({orig_lines} → {opt_lines}) — expanded for clarity")
+            else:
+                st.info(f"**Same line count** ({orig_lines} lines)")
+    
+            c1, c2 = st.columns(2)
+            with c1:
+                st.caption("Original")
+                st.code(orig if orig else "No original code", language="sql")
+            with c2:
+                st.caption("Optimized")
+                st.code(opt, language="sql")
