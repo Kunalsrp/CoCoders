@@ -250,7 +250,7 @@ When you run the streamlit file the Streamlit UI appers in the right pane ready 
 - Browse file
 - 
 ### Paste SQL UI
-![Paste SQL UI]((https://github.com/Kunalsrp/CoCoders/blob/main/images/Paste_Code.jpg))
+![Paste SQL UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Paste_Code.jpg)
 
 ### Browse File UI
 ![Browse File UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Browse_File.jpg)
