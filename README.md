@@ -248,20 +248,17 @@ When you run the streamlit file the Streamlit UI appers in the right pane ready 
 ### There are two options - 
 - Paste SQL
 - Browse file
-- 
+  
 ### Paste SQL UI
 ![Paste SQL UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Paste_Code.jpg)
-
-### Browse File UI
-![Browse File UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Browse_File.jpg)
-
-### Output UI
-![Output UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Output.jpg)
 
 ### When you select Paste SQL button 
 - There is a text box to paste code
 
 ### When you paste code press optimize code button to Optimize code
+
+### Browse File UI
+![Browse File UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Browse_File.jpg)
 
 ### When you select Browse file button 
 - There are dropdowns to select
@@ -272,7 +269,8 @@ When you run the streamlit file the Streamlit UI appers in the right pane ready 
 
 ### After selecting click on Fetch DDL which will fetch the code from respective object then click on Optimize Code button to optimize code
 
-
+### Output UI
+![Output UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Output.jpg)
 
 #### Output has -
 - Original Code Type
