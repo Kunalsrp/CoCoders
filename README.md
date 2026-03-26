@@ -238,14 +238,22 @@ System.py
 
 
 ## Step 3 — Run the file
+Run your Streamlit file
 
-## Step 4 — Steamlit UI of the System appears that is ready to use.
+## Step 4 — Streamlit UI 
+When you run the streamlit file the Streamlit UI appers in the right pane ready to use.
 
 ## UI Layout (Headline - Legacy SQL Modernization Tool)
 
 ### There are two options - 
 - Paste SQL
 - Browse file
+- 
+### Paste SQL UI
+![Paste SQL UI](images/paste_sql.png)
+
+### Browse File UI
+![Browse File UI](images/browse_file.png)
 
 ### When you select Paste SQL button 
 - There is a text box to paste code
