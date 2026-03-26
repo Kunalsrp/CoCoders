@@ -250,10 +250,13 @@ When you run the streamlit file the Streamlit UI appers in the right pane ready 
 - Browse file
 - 
 ### Paste SQL UI
-![Paste SQL UI](images/paste_sql.png)
+![Paste SQL UI](images/[paste_sql.png](https://github.com/Kunalsrp/CoCoders/blob/main/images/Paste_Code.jpg))
 
 ### Browse File UI
-![Browse File UI](images/browse_file.png)
+![Browse File UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Browse_File.jpg)
+
+### Output UI
+![Output UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Output.jpg)
 
 ### When you select Paste SQL button 
 - There is a text box to paste code
