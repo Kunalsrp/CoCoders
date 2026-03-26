@@ -1,4 +1,4 @@
-# Snowflake SQL Modernization Tool
+# CoCo-Morph: Snowflake SQL Modernization Tool
 
 ## Overview
 
