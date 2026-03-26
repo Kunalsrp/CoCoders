@@ -1,8 +1,8 @@
-# CoCo-Morph: Snowflake SQL Modernization Tool
+# CoCo-Morph: Legacy Code Modernization Tool
 
 ## Overview
 
-This project focuses on building a **Snowflake SQL Modernization Tool** that converts legacy SQL queries into **Snowflake‑optimized SQL** and provides **performance optimization recommendations**.
+This project focuses on building a **Legacy Code Modernization Tool** that converts legacy SQL queries into **Snowflake‑optimized SQL** and provides **performance optimization recommendations**.
 
 The tool leverages **Snowflake COCO (Snowflake Agent))** and **Streamlit UI** to allow users to:
 
@@ -10,7 +10,7 @@ The tool leverages **Snowflake COCO (Snowflake Agent))** and **Streamlit UI** to
 - Select SQL directly from Snowflake objects
 - Convert to Snowflake optimized SQL
 - Get optimization recommendations
-- Reduced query complexity percent
+- Pattern Analysis
 
 ---
 
@@ -199,7 +199,7 @@ Features:
 3. Show Original code type
 4. Show optimized SQL 
 5. Show suggestions
-6. Code Complexity reduction & Complexity analysis
+6. Pattern Analysis
 
 Design UI layout and code for it.
 
@@ -273,10 +273,10 @@ When you run the streamlit file the Streamlit UI appers in the right pane ready 
 ![Output UI](https://github.com/Kunalsrp/CoCoders/blob/main/images/Output.jpg)
 
 #### Output has -
-- Original Code Type
+- Original Code Type detected
 - Optimized SQL
 - Suggestions
-- Code Complexity reduction percent & Complexity Analysis
+- Pattern Analysis
 - Side by Side code view
 
 
